@@ -129,11 +129,23 @@ TestExecutor[] createExecutors(TestSource[] sources, Boolean(TestExecutor) filte
 }
 
 TestExecutor createExecutor(FunctionDeclaration funcDecl, ClassDeclaration? classDecl) {
+    value argumentProvider = DefaultTestArgumentProvider(); // TODO add mechanism to choose argument provider
     value executorAnnotation = findAnnotation<TestExecutorAnnotation>(funcDecl, classDecl);
     value executorClass = executorAnnotation?.executor else `class DefaultTestExecutor`;
-    value executor = executorClass.instantiate([], funcDecl, classDecl);
-    assert (is TestExecutor executor);
-    return executor;
+    value executors = [
+        for (arguments in argumentProvider.argumentLists(funcDecl, classDecl))
+            if (is TestExecutor executor = executorClass.instantiate([], funcDecl, classDecl, arguments))
+                executor
+    ];
+    if (nonempty executors) {
+        if (executors.size == 1) {
+            return executors.first;
+        } else {
+            return GroupTestExecutor(TestDescription(funcDecl.qualifiedName, funcDecl, null, null, executors*.description), executors.sequence());
+        }
+    } else {
+        return ErrorTestExecutor(TestDescription(funcDecl.qualifiedName, funcDecl), Exception("test argument provider ``argumentProvider`` did not provide any argument lists for test function ``funcDecl.qualifiedName``"));
+    }
 }
 
 TestExecutor createSuiteExecutor(FunctionDeclaration funcDecl, TestSuiteAnnotation suiteAnnotation, Boolean(TestExecutor) filter, Comparison(TestExecutor, TestExecutor) comparator) {

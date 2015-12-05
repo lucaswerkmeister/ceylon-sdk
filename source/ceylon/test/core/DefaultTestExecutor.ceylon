@@ -18,9 +18,9 @@ import ceylon.test.event {
 }
 
 "Default implementation of [[TestExecutor]]."
-shared class DefaultTestExecutor(FunctionDeclaration functionDeclaration, ClassDeclaration? classDeclaration) satisfies TestExecutor {
+shared class DefaultTestExecutor(FunctionDeclaration functionDeclaration, ClassDeclaration? classDeclaration, Anything[] arguments) satisfies TestExecutor {
         
-    shared actual default TestDescription description => TestDescription(getName(), functionDeclaration, classDeclaration);
+    shared actual default TestDescription description => TestDescription(getName(), functionDeclaration, classDeclaration, arguments);
     
     shared actual default void execute(TestRunContext context) {
         if (verify(context) && evaluateTestConditions(context)) {
@@ -44,7 +44,6 @@ shared class DefaultTestExecutor(FunctionDeclaration functionDeclaration, ClassD
                 verifyClassTypeParameters(classDeclaration);
             }
             verifyFunctionAnnotations();
-            verifyFunctionParameters();
             verifyFunctionTypeParameters();
             verifyFunctionReturnType();
             verifyBeforeCallbacks();
@@ -87,12 +86,6 @@ shared class DefaultTestExecutor(FunctionDeclaration functionDeclaration, ClassD
     shared default void verifyFunctionAnnotations() {
         if (functionDeclaration.annotations<TestAnnotation>().empty) {
             throw Exception("function ``functionDeclaration.qualifiedName`` should be annotated with test");
-        }
-    }
-    
-    shared default void verifyFunctionParameters() {
-        if (!functionDeclaration.parameterDeclarations.empty) {
-            throw Exception("function ``functionDeclaration.qualifiedName`` should have no parameters");
         }
     }
     
@@ -244,10 +237,10 @@ shared class DefaultTestExecutor(FunctionDeclaration functionDeclaration, ClassD
     
     void invokeFunction(FunctionDeclaration f, Object? instance) {
         if (f.toplevel) {
-            f.invoke();
+            f.invoke([], *arguments);
         } else {
             assert(exists i = instance);
-            f.memberInvoke(i);
+            f.memberInvoke(i, [], *arguments);
         }
     }
     

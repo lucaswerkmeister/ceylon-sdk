@@ -3,7 +3,7 @@ import ceylon.language.meta.declaration {
 }
 
 "Describes a test, or a group of tests, can be arranged in a tree."
-shared class TestDescription(name, functionDeclaration = null, classDeclaration = null, children = []) {
+shared class TestDescription(name, functionDeclaration = null, classDeclaration = null, arguments = null, children = []) {
     
     "The user friendly name of this test."
     shared String name;
@@ -14,6 +14,10 @@ shared class TestDescription(name, functionDeclaration = null, classDeclaration 
     "The class declaration, which is container of this test, if one exists."
     shared ClassDeclaration? classDeclaration;
     
+    "The arguments of this test,
+     or [[null]] if this is not a single test."
+    shared Anything[]? arguments;
+    
     "The children of this test, if any."
     shared TestDescription[] children;
     
@@ -22,6 +26,7 @@ shared class TestDescription(name, functionDeclaration = null, classDeclaration 
             return name == that.name
                     && equalsCompare(functionDeclaration, that.functionDeclaration)
                     && equalsCompare(classDeclaration, that.classDeclaration)
+                    && equalsCompare(arguments, that.arguments)
                     && children == that.children;
         }
         return false;

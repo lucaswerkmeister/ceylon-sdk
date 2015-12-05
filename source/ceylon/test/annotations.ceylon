@@ -3,7 +3,9 @@ import ceylon.language.meta.declaration {
 }
 
 "Marks a function as being a test.
- Only nullary functions should be annotated with `test`.
+ Test functions are usually nullary;
+ otherwise, each parameter must specify a [[dataProvider]],
+ or be defaulted.
  
  Example of simplest test:
  
@@ -91,6 +93,42 @@ shared annotation IgnoreAnnotation ignore(
     "Reason why the test is ignored."
     String reason = "") => IgnoreAnnotation(reason);
 
+"Specifies a data provider for a parameter.
+ The data provider must be a toplevel value or nullary function
+ returning a stream of values.
+ `ceylon.test` then runs a test function once for each value that the data provider yields,
+ passing it as the argument to the parameter annotated with that data provider.
+ 
+ Example:
+ 
+     shared {Integer*} intCornerCases => {
+         0, 1, -1,
+         2^16-1, 2^16,
+         runtime.maxIntegerValue, runtime.minIntegerValue
+     };
+     
+     test shared void intsShouldEqualThemselves(
+         dataProvider (`value intCornerCases`) Integer int) {
+         assertEquals(int, int);
+     }
+ 
+ This will run the `intsShouldEqualThemselves` test seven times,
+ once for each integer in `intCornerCases`.
+ 
+ A test function may have multiple parameters with data providers;
+ it will be run for each combination of values from all data providers.
+ That is, a function with one parameter whose data provider yields two values,
+ and one parameter whose data provider yields three values,
+ will be called six times.
+ 
+ If a test function or data provider parameter does not specify a data provider,
+ it must be defaulted, and `ceylon.test` will use the default argument.
+"
+shared annotation DataProviderAnnotation dataProvider(
+    "Declaration of the data provider."
+    FunctionOrValueDeclaration provider)
+        => DataProviderAnnotation(provider);
+
 "Annotation class for [[test]]."
 shared final annotation class TestAnnotation()
         satisfies OptionalAnnotation<TestAnnotation,FunctionDeclaration> {}
@@ -136,3 +174,9 @@ shared final annotation class IgnoreAnnotation(
     shared actual Result evaluate(TestDescription description) => Result(false, reason);
     
 }
+
+"Annotation class for [[dataProvider]]."
+shared final annotation class DataProviderAnnotation(
+    "Declaration of the data provider"
+    shared FunctionOrValueDeclaration provider)
+        satisfies OptionalAnnotation<DataProviderAnnotation,FunctionOrValueDeclaration> {}
