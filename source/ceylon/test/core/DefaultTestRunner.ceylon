@@ -80,7 +80,7 @@ shared class DefaultTestRunner(
 
 alias TestCandidate => [FunctionDeclaration, ClassDeclaration?]|ErrorTestExecutor;
 
-TestExecutor[] createExecutors(TestSource[] sources, Boolean(TestExecutor) filter, Comparison(TestExecutor, TestExecutor) comparator) {
+TestExecutor[] createExecutors(TestSource[] sources, Boolean(TestExecutor) filter, Comparison(TestExecutor, TestExecutor) comparator, ArgumentListProvider argListProvider = DefaultArgumentListProvider()) {
     TestCandidate[] candidates = findCandidates(sources);
     
     value executors = ArrayList<TestExecutor>();
@@ -98,7 +98,7 @@ TestExecutor[] createExecutors(TestSource[] sources, Boolean(TestExecutor) filte
                     executors.add(suiteExecutor);
                 }
             } else {
-                value executor = createExecutor(funcDecl, classDecl);
+                value executor = createExecutor(funcDecl, classDecl, argListProvider);
                 if (filter(executor)) {
                     if (exists classDecl) {
                         value executorsWithClass = executorsWithClasses.sequence().find(([ClassDeclaration, ArrayList<TestExecutor>] elem) => elem[0] == classDecl);
@@ -128,12 +128,27 @@ TestExecutor[] createExecutors(TestSource[] sources, Boolean(TestExecutor) filte
     return executors.sequence().sort(comparator);
 }
 
-TestExecutor createExecutor(FunctionDeclaration funcDecl, ClassDeclaration? classDecl) {
+TestExecutor createExecutor(FunctionDeclaration funcDecl, ClassDeclaration? classDecl, ArgumentListProvider argListProvider = DefaultArgumentListProvider()) {
+    value argumentListProvider =
+            if (exists argListProvAnn = funcDecl.annotations<ArgumentListProviderAnnotation>().first)
+            then argListProvAnn.provider.defaultConstructor.apply<ArgumentListProvider,[]>()()
+            else argListProvider;
     value executorAnnotation = findAnnotation<TestExecutorAnnotation>(funcDecl, classDecl);
     value executorClass = executorAnnotation?.executor else `class DefaultTestExecutor`;
-    value executor = executorClass.instantiate([], funcDecl, classDecl);
-    assert (is TestExecutor executor);
-    return executor;
+    value executors = [
+        for (argumentList in argumentListProvider.argumentLists(funcDecl, classDecl))
+            if (is TestExecutor executor = executorClass.instantiate([], funcDecl, classDecl, argumentList))
+                executor
+    ];
+    if (nonempty executors) {
+        if (executors.size == 1) {
+            return executors.first;
+        } else {
+            return GroupTestExecutor(TestDescription(funcDecl.qualifiedName, funcDecl, null, null, executors*.description), executors.sequence());
+        }
+    } else {
+        return ErrorTestExecutor(TestDescription(funcDecl.qualifiedName, funcDecl), Exception("test argument list provider ``argumentListProvider`` did not provide any argument lists for test function ``funcDecl.qualifiedName``"));
+    }
 }
 
 TestExecutor createSuiteExecutor(FunctionDeclaration funcDecl, TestSuiteAnnotation suiteAnnotation, Boolean(TestExecutor) filter, Comparison(TestExecutor, TestExecutor) comparator) {
@@ -154,7 +169,7 @@ TestExecutor createSuiteExecutor(FunctionDeclaration funcDecl, TestSuiteAnnotati
         }
     }
     
-    executors.addAll(createExecutors(sources.sequence(), filter, comparator));
+    executors.addAll(createExecutors(sources.sequence(), filter, comparator, suiteAnnotation.argumentListProvider.defaultConstructor.apply<ArgumentListProvider,[]>()()));
     
     if (executors.empty) {
         return ErrorTestExecutor(TestDescription(funcDecl.qualifiedName, funcDecl), Exception("test suite ``funcDecl.qualifiedName`` does not contains any tests"));
